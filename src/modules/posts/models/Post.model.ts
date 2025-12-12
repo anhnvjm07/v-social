@@ -1,11 +1,11 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IPost extends Document {
   author: mongoose.Types.ObjectId;
   content: string;
   media: Array<{
     url: string;
-    type: 'image' | 'video';
+    type: "image" | "video";
     publicId: string;
   }>;
   likesCount: number;
@@ -18,9 +18,8 @@ const postSchema = new Schema<IPost>(
   {
     author: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
-      index: true,
     },
     content: {
       type: String,
@@ -36,7 +35,7 @@ const postSchema = new Schema<IPost>(
         },
         type: {
           type: String,
-          enum: ['image', 'video'],
+          enum: ["image", "video"],
           required: true,
         },
         publicId: {
@@ -63,5 +62,4 @@ const postSchema = new Schema<IPost>(
 postSchema.index({ author: 1, createdAt: -1 });
 postSchema.index({ createdAt: -1 });
 
-export const Post: Model<IPost> = mongoose.model<IPost>('Post', postSchema);
-
+export const Post: Model<IPost> = mongoose.model<IPost>("Post", postSchema);

@@ -1,5 +1,5 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
-import bcrypt from 'bcrypt';
+import mongoose, { Schema, Document, Model } from "mongoose";
+import bcrypt from "bcrypt";
 
 export interface IUser extends Document {
   email: string;
@@ -25,7 +25,6 @@ const userSchema = new Schema<IUser>(
       unique: true,
       lowercase: true,
       trim: true,
-      index: true,
     },
     password: {
       type: String,
@@ -48,7 +47,6 @@ const userSchema = new Schema<IUser>(
       sparse: true,
       trim: true,
       lowercase: true,
-      index: true,
     },
     avatar: {
       type: String,
@@ -76,8 +74,8 @@ userSchema.index({ email: 1 });
 userSchema.index({ username: 1 });
 
 // Hash password before saving
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
     return next();
   }
 
@@ -102,5 +100,4 @@ userSchema.methods.getFullName = function (): string {
   return `${this.firstName} ${this.lastName}`;
 };
 
-export const User: Model<IUser> = mongoose.model<IUser>('User', userSchema);
-
+export const User: Model<IUser> = mongoose.model<IUser>("User", userSchema);

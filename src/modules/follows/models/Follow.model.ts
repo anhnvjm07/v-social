@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IFollow extends Document {
   follower: mongoose.Types.ObjectId;
@@ -10,15 +10,13 @@ const followSchema = new Schema<IFollow>(
   {
     follower: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
-      index: true,
     },
     following: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
-      index: true,
     },
   },
   {
@@ -32,13 +30,15 @@ followSchema.index({ follower: 1 });
 followSchema.index({ following: 1 });
 
 // Prevent self-follow
-followSchema.pre('save', function (next) {
+followSchema.pre("save", function (next) {
   if (this.follower.toString() === this.following.toString()) {
-    next(new Error('Cannot follow yourself'));
+    next(new Error("Cannot follow yourself"));
   } else {
     next();
   }
 });
 
-export const Follow: Model<IFollow> = mongoose.model<IFollow>('Follow', followSchema);
-
+export const Follow: Model<IFollow> = mongoose.model<IFollow>(
+  "Follow",
+  followSchema
+);

@@ -174,9 +174,29 @@ Dù deploy ở đâu, nên dùng MongoDB Atlas (free tier 512MB):
 
 1. Vào https://www.mongodb.com/cloud/atlas
 2. Tạo cluster free
-3. Whitelist IP: `0.0.0.0/0` (hoặc IP của server)
-4. Lấy connection string
-5. Set vào `MONGODB_URI`
+3. **Whitelist IP Addresses**:
+   - Vào "Network Access" → "Add IP Address"
+   - **Cho Render**: Thêm `0.0.0.0/0` (allow all IPs) - OK cho production
+   - **Hoặc an toàn hơn**: Render không có static IP, nên phải dùng `0.0.0.0/0`
+   - **Cho Railway**: Cũng dùng `0.0.0.0/0`
+   - **Cho VPS**: Thêm IP cụ thể của VPS
+4. **Database User**:
+   - Vào "Database Access" → "Add New Database User"
+   - Tạo user với password mạnh
+   - Role: "Atlas admin" hoặc "Read and write to any database"
+5. **Connection String**:
+   - Vào "Database" → "Connect" → "Connect your application"
+   - Copy connection string
+   - Thay `<password>` bằng password của user
+   - Thay `<dbname>` bằng tên database (ví dụ: `social`)
+   - Format: `mongodb+srv://username:password@cluster.mongodb.net/social?retryWrites=true&w=majority`
+6. Set vào `MONGODB_URI` trong environment variables
+
+**Lưu ý**: Nếu vẫn lỗi connection sau khi whitelist:
+
+- Kiểm tra password có ký tự đặc biệt → URL encode
+- Kiểm tra connection string có đúng format
+- Thử thêm `&ssl=true` vào connection string
 
 ---
 
