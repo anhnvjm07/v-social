@@ -1,4 +1,8 @@
-import "tsconfig-paths/register";
+// Only register tsconfig-paths in development
+if (process.env.NODE_ENV !== "production") {
+  require("tsconfig-paths/register");
+}
+
 import "./shared/types/express";
 import app from "./app";
 import { database } from "./shared/config/database";
