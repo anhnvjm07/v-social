@@ -1,15 +1,19 @@
-import { Router } from 'express';
-import { postsController } from '../controllers/posts.controller';
-import { validate } from '@shared/middleware/validation.middleware';
-import { authenticate, optionalAuthenticate } from '@shared/middleware/auth.middleware';
-import { uploadMultiple } from '@shared/middleware/upload.middleware';
+import { Router } from "express";
+import { postsController } from "../controllers/posts.controller";
+import { validate } from "@shared/middleware/validation.middleware";
+import {
+  authenticate,
+  optionalAuthenticate,
+} from "@shared/middleware/auth.middleware";
+import { uploadMultiple } from "@shared/middleware/upload.middleware";
 import {
   createPostSchema,
   updatePostSchema,
   getPostsSchema,
+  getMyPostsSchema,
   getPostSchema,
   deletePostSchema,
-} from '../validators/posts.validator';
+} from "../validators/posts.validator";
 
 const router = Router();
 
@@ -38,6 +42,11 @@ const router = Router();
  *                 items:
  *                   type: string
  *                   format: binary
+ *               visibility:
+ *                 type: string
+ *                 enum: [public, private, followers]
+ *                 default: public
+ *                 description: Post visibility - public (công khai), private (chỉ mình tôi), followers (chỉ follower)
  *     responses:
  *       201:
  *         description: Post created successfully
@@ -45,9 +54,9 @@ const router = Router();
  *         description: Unauthorized
  */
 router.post(
-  '/',
+  "/",
   authenticate,
-  uploadMultiple('files', 10),
+  uploadMultiple("files", 10),
   validate(createPostSchema),
   postsController.createPost.bind(postsController)
 );
@@ -79,10 +88,64 @@ router.post(
  *         description: List of posts
  */
 router.get(
-  '/',
+  "/",
   optionalAuthenticate,
   validate(getPostsSchema),
   postsController.getPosts.bind(postsController)
+);
+
+/**
+ * @swagger
+ * /api/posts/me:
+ *   get:
+ *     summary: Get my posts
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: List of my posts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: number
+ *                     limit:
+ *                       type: number
+ *                     total:
+ *                       type: number
+ *                     pages:
+ *                       type: number
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/me",
+  authenticate,
+  validate(getMyPostsSchema),
+  postsController.getMyPosts.bind(postsController)
 );
 
 /**
@@ -104,7 +167,7 @@ router.get(
  *         description: Post not found
  */
 router.get(
-  '/:id',
+  "/:id",
   optionalAuthenticate,
   validate(getPostSchema),
   postsController.getPost.bind(postsController)
@@ -139,6 +202,10 @@ router.get(
  *                 items:
  *                   type: string
  *                   format: uri
+ *               visibility:
+ *                 type: string
+ *                 enum: [public, private, followers]
+ *                 description: Post visibility - public (công khai), private (chỉ mình tôi), followers (chỉ follower)
  *     responses:
  *       200:
  *         description: Post updated successfully
@@ -150,7 +217,7 @@ router.get(
  *         description: Post not found
  */
 router.put(
-  '/:id',
+  "/:id",
   authenticate,
   validate(updatePostSchema),
   postsController.updatePost.bind(postsController)
@@ -181,11 +248,10 @@ router.put(
  *         description: Post not found
  */
 router.delete(
-  '/:id',
+  "/:id",
   authenticate,
   validate(deletePostSchema),
   postsController.deletePost.bind(postsController)
 );
 
 export default router;
-

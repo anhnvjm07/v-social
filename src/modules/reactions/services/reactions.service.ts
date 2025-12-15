@@ -3,6 +3,7 @@ import { Post } from '@modules/posts/models/Post.model';
 import { Comment } from '@modules/comments/models/Comment.model';
 import { NotFoundError, ConflictError } from '@shared/utils/errors';
 import { CreateReactionDto, ReactionQueryParams } from '../types/reactions.types';
+import { notificationsService } from '@modules/notifications/services/notifications.service';
 import mongoose from 'mongoose';
 
 class ReactionsService {
@@ -55,6 +56,12 @@ class ReactionsService {
 
       await reaction.save();
       await this.updateTargetReactionCount(targetId, targetType, 1);
+
+      // Create notification for like
+      this.createLikeNotification(userId, targetId, targetType).catch((error) => {
+        // Silently fail - don't block the reaction creation
+        console.error('Failed to create notification:', error);
+      });
 
       return { reaction, action: 'created' };
     }
@@ -132,6 +139,44 @@ class ReactionsService {
       await Post.findByIdAndUpdate(targetId, { $inc: { likesCount: increment } });
     } else {
       await Comment.findByIdAndUpdate(targetId, { $inc: { likesCount: increment } });
+    }
+  }
+
+  private async createLikeNotification(
+    userId: string,
+    targetId: string,
+    targetType: ReactionTargetType
+  ): Promise<void> {
+    try {
+      let authorId: string;
+      let referenceType: 'post' | 'comment';
+
+      if (targetType === 'post') {
+        const post = await Post.findById(targetId).select('author');
+        if (!post) return;
+        authorId = post.author.toString();
+        referenceType = 'post';
+      } else {
+        const comment = await Comment.findById(targetId).select('author');
+        if (!comment) return;
+        authorId = comment.author.toString();
+        referenceType = 'comment';
+      }
+
+      // Skip notification if user likes their own post/comment
+      if (authorId === userId) {
+        return;
+      }
+
+      await notificationsService.createNotification({
+        userId: authorId,
+        type: 'like',
+        referenceId: targetId,
+        referenceType,
+      });
+    } catch (error) {
+      // Silently fail - don't block the reaction creation
+      console.error('Error creating like notification:', error);
     }
   }
 }

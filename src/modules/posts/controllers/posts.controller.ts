@@ -63,6 +63,34 @@ class PostsController {
     }
   }
 
+  async getMyPosts(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+        return;
+      }
+
+      const queryParams = {
+        page: req.query.page ? parseInt(req.query.page as string) : undefined,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
+        userId: req.user.id, // Use current user's ID
+      };
+
+      const result = await postsService.getPosts(queryParams, req.user.id);
+
+      res.status(200).json({
+        success: true,
+        data: result.posts,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async updatePost(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {

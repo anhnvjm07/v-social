@@ -3,6 +3,8 @@ import { Post } from '@modules/posts/models/Post.model';
 import { NotFoundError, ForbiddenError, BadRequestError } from '@shared/utils/errors';
 import { CreateCommentDto, UpdateCommentDto, CommentQueryParams } from '../types/comments.types';
 import { postsService } from '@modules/posts/services/posts.service';
+import { notificationsService } from '@modules/notifications/services/notifications.service';
+import { extractMentions, validateMentions } from '@shared/utils/mentions';
 
 class CommentsService {
   async createComment(
@@ -46,6 +48,18 @@ class CommentsService {
         $inc: { repliesCount: 1 },
       });
     }
+
+    // Create notifications asynchronously
+    this.createCommentNotifications(
+      userId,
+      postId,
+      post.author.toString(),
+      data.parentCommentId,
+      data.content,
+      comment._id.toString()
+    ).catch((error) => {
+      console.error('Failed to create comment notifications:', error);
+    });
 
     return comment;
   }
@@ -165,6 +179,67 @@ class CommentsService {
       await Comment.findByIdAndUpdate(parentCommentId, {
         $inc: { repliesCount: -1 },
       });
+    }
+  }
+
+  private async createCommentNotifications(
+    userId: string,
+    postId: string,
+    postAuthorId: string,
+    parentCommentId: string | undefined,
+    content: string,
+    commentId: string
+  ): Promise<void> {
+    try {
+      // Notify post author if comment is not from post author
+      if (postAuthorId !== userId) {
+        await notificationsService.createNotification({
+          userId: postAuthorId,
+          type: 'comment',
+          referenceId: postId,
+          referenceType: 'post',
+        });
+      }
+
+      // If it's a reply, notify parent comment author
+      if (parentCommentId) {
+        const parentComment = await Comment.findById(parentCommentId).select('author');
+        if (parentComment) {
+          const parentAuthorId = parentComment.author.toString();
+          // Notify parent comment author if reply is not from them
+          if (parentAuthorId !== userId) {
+            await notificationsService.createNotification({
+              userId: parentAuthorId,
+              type: 'reply',
+              referenceId: commentId,
+              referenceType: 'comment',
+            });
+          }
+        }
+      }
+
+      // Detect and notify mentioned users
+      const mentionedUsernames = extractMentions(content);
+      if (mentionedUsernames.length > 0) {
+        const mentionedUserIds = await validateMentions(mentionedUsernames);
+        
+        // Create mention notifications for each mentioned user (excluding the comment author)
+        const notifications = mentionedUserIds
+          .filter((mentionedUserId) => mentionedUserId !== userId)
+          .map((mentionedUserId) =>
+            notificationsService.createNotification({
+              userId: mentionedUserId,
+              type: 'mention',
+              referenceId: commentId,
+              referenceType: 'comment',
+            })
+          );
+
+        await Promise.all(notifications);
+      }
+    } catch (error) {
+      // Silently fail - don't block the comment creation
+      console.error('Error creating comment notifications:', error);
     }
   }
 }

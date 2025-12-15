@@ -2,6 +2,7 @@ import { Follow, IFollow } from '../models/Follow.model';
 import { User } from '@modules/auth/models/User.model';
 import { NotFoundError, BadRequestError, ConflictError } from '@shared/utils/errors';
 import { FollowQueryParams } from '../types/follows.types';
+import { notificationsService } from '@modules/notifications/services/notifications.service';
 
 class FollowsService {
   async followUser(followerId: string, followingId: string): Promise<IFollow> {
@@ -33,6 +34,19 @@ class FollowsService {
     await follow.save();
     await follow.populate('follower', 'firstName lastName username avatar');
     await follow.populate('following', 'firstName lastName username avatar');
+
+    // Create notification for follow
+    notificationsService
+      .createNotification({
+        userId: followingId,
+        type: 'follow',
+        referenceId: followerId,
+        referenceType: 'user',
+      })
+      .catch((error) => {
+        // Silently fail - don't block the follow creation
+        console.error('Failed to create follow notification:', error);
+      });
 
     return follow;
   }

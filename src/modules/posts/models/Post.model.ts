@@ -1,5 +1,7 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+export type PostVisibility = "public" | "private" | "followers";
+
 export interface IPost extends Document {
   author: mongoose.Types.ObjectId;
   content: string;
@@ -8,6 +10,7 @@ export interface IPost extends Document {
     type: "image" | "video";
     publicId: string;
   }>;
+  visibility: PostVisibility;
   likesCount: number;
   commentsCount: number;
   createdAt: Date;
@@ -44,6 +47,12 @@ const postSchema = new Schema<IPost>(
         },
       },
     ],
+    visibility: {
+      type: String,
+      enum: ["public", "private", "followers"],
+      default: "public",
+      index: true,
+    },
     likesCount: {
       type: Number,
       default: 0,

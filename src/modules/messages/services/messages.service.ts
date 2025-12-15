@@ -2,6 +2,7 @@ import { Message, IMessage } from '../models/Message.model';
 import { User } from '@modules/auth/models/User.model';
 import { NotFoundError, BadRequestError } from '@shared/utils/errors';
 import { SendMessageDto, MessageQueryParams } from '../types/messages.types';
+import { notificationsService } from '@modules/notifications/services/notifications.service';
 import mongoose from 'mongoose';
 
 class MessagesService {
@@ -25,6 +26,19 @@ class MessagesService {
     await message.save();
     await message.populate('sender', 'firstName lastName username avatar');
     await message.populate('receiver', 'firstName lastName username avatar');
+
+    // Create notification for message
+    notificationsService
+      .createNotification({
+        userId: data.receiverId,
+        type: 'message',
+        referenceId: message._id.toString(),
+        referenceType: 'message',
+      })
+      .catch((error) => {
+        // Silently fail - don't block the message creation
+        console.error('Failed to create message notification:', error);
+      });
 
     return message;
   }

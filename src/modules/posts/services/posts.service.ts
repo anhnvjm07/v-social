@@ -3,6 +3,9 @@ import { User } from '@modules/auth/models/User.model';
 import { cloudinaryService, UploadResult } from '@shared/config/cloudinary';
 import { NotFoundError, ForbiddenError, BadRequestError } from '@shared/utils/errors';
 import { CreatePostDto, UpdatePostDto, PostQueryParams } from '../types/posts.types';
+import { Follow } from '@modules/follows/models/Follow.model';
+import { notificationsService } from '@modules/notifications/services/notifications.service';
+import { extractMentions, validateMentions } from '@shared/utils/mentions';
 import mongoose from 'mongoose';
 
 class PostsService {
@@ -44,10 +47,16 @@ class PostsService {
       author: userId,
       content: data.content,
       media,
+      visibility: data.visibility || 'public',
     });
 
     await post.save();
     await post.populate('author', 'firstName lastName username avatar');
+
+    // Detect and notify mentioned users
+    this.createMentionNotifications(userId, data.content, post._id.toString()).catch((error) => {
+      console.error('Failed to create mention notifications:', error);
+    });
 
     return post;
   }
@@ -59,7 +68,57 @@ class PostsService {
       throw new NotFoundError('Post not found');
     }
 
+    // Check visibility
+    const canView = await this.canViewPost(post, userId);
+    if (!canView) {
+      throw new NotFoundError('Post not found');
+    }
+
     return post;
+  }
+
+  private async canViewPost(
+    post: IPost | any,
+    userId?: string
+  ): Promise<boolean> {
+    // Public posts: always visible
+    if (post.visibility === 'public') {
+      return true;
+    }
+
+    // If user not logged in, only public posts are visible
+    if (!userId) {
+      return false;
+    }
+
+    // Get author ID (handle both Mongoose document and plain object)
+    const authorId =
+      typeof post.author === 'object' && post.author._id
+        ? post.author._id.toString()
+        : post.author.toString();
+
+    // Private posts: only author can view
+    if (post.visibility === 'private') {
+      return authorId === userId;
+    }
+
+    // Followers posts: author or followers can view
+    if (post.visibility === 'followers') {
+      // Author can always view their own posts
+      if (authorId === userId) {
+        return true;
+      }
+
+      // Check if user is following the author
+      const follow = await Follow.findOne({
+        follower: userId,
+        following: authorId,
+      });
+
+      return !!follow;
+    }
+
+    return false;
   }
 
   async getPosts(params: PostQueryParams, userId?: string) {
@@ -73,17 +132,68 @@ class PostsService {
       query.author = params.userId;
     }
 
+    // Build visibility filter
+    if (!userId) {
+      // Not logged in: only public posts
+      query.visibility = 'public';
+    } else {
+      // Logged in: can see public, own private/followers, and followers posts if following
+      const visibilityConditions: any[] = [{ visibility: 'public' }];
+
+      // Own posts (private or followers) are always visible
+      visibilityConditions.push({
+        $and: [
+          { author: new mongoose.Types.ObjectId(userId) },
+          { visibility: { $in: ['private', 'followers'] } },
+        ],
+      });
+
+      // Followers posts: need to check if user is following the author
+      // We'll filter this after fetching using canViewPost method
+      query.$or = visibilityConditions;
+    }
+
     const posts = await Post.find(query)
       .populate('author', 'firstName lastName username avatar')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit)
+      .limit(limit * 2) // Fetch more to account for filtering
       .lean();
 
-    const total = await Post.countDocuments(query);
+    // Filter posts based on visibility rules
+    const filteredPosts = [];
+    for (const post of posts) {
+      const canView = await this.canViewPost(post, userId);
+      if (canView) {
+        filteredPosts.push(post);
+        if (filteredPosts.length >= limit) {
+          break;
+        }
+      }
+    }
+
+    // Get accurate total count (this is approximate for performance)
+    const totalQuery: any = {};
+    if (params.userId) {
+      totalQuery.author = params.userId;
+    }
+    if (!userId) {
+      totalQuery.visibility = 'public';
+    } else {
+      totalQuery.$or = [
+        { visibility: 'public' },
+        {
+          $and: [
+            { author: new mongoose.Types.ObjectId(userId) },
+            { visibility: { $in: ['private', 'followers'] } },
+          ],
+        },
+      ];
+    }
+    const total = await Post.countDocuments(totalQuery);
 
     return {
-      posts,
+      posts: filteredPosts,
       pagination: {
         page,
         limit,
@@ -130,6 +240,10 @@ class PostsService {
       });
     }
 
+    if (data.visibility !== undefined) {
+      post.visibility = data.visibility;
+    }
+
     await post.save();
     await post.populate('author', 'firstName lastName username avatar');
 
@@ -166,6 +280,38 @@ class PostsService {
 
   async decrementCommentsCount(postId: string): Promise<void> {
     await Post.findByIdAndUpdate(postId, { $inc: { commentsCount: -1 } });
+  }
+
+  private async createMentionNotifications(
+    userId: string,
+    content: string,
+    postId: string
+  ): Promise<void> {
+    try {
+      const mentionedUsernames = extractMentions(content);
+      if (mentionedUsernames.length === 0) {
+        return;
+      }
+
+      const mentionedUserIds = await validateMentions(mentionedUsernames);
+
+      // Create mention notifications for each mentioned user (excluding the post author)
+      const notifications = mentionedUserIds
+        .filter((mentionedUserId) => mentionedUserId !== userId)
+        .map((mentionedUserId) =>
+          notificationsService.createNotification({
+            userId: mentionedUserId,
+            type: 'mention',
+            referenceId: postId,
+            referenceType: 'post',
+          })
+        );
+
+      await Promise.all(notifications);
+    } catch (error) {
+      // Silently fail - don't block the post creation
+      console.error('Error creating mention notifications:', error);
+    }
   }
 }
 

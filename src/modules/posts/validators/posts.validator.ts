@@ -4,6 +4,7 @@ export const createPostSchema = Joi.object({
   body: Joi.object({
     content: Joi.string().trim().min(1).max(2000).required(),
     media: Joi.array().items(Joi.string().uri()).optional(),
+    visibility: Joi.string().valid("public", "private", "followers").optional(),
   }),
 });
 
@@ -11,6 +12,7 @@ export const updatePostSchema = Joi.object({
   body: Joi.object({
     content: Joi.string().trim().min(1).max(2000).optional(),
     media: Joi.array().items(Joi.string().uri()).optional(),
+    visibility: Joi.string().valid("public", "private", "followers").optional(),
   }),
   params: Joi.object({
     id: Joi.string().required(),
@@ -22,6 +24,13 @@ export const getPostsSchema = Joi.object({
     page: Joi.number().integer().min(1).optional(),
     limit: Joi.number().integer().min(1).max(100).optional(),
     userId: Joi.string().optional(),
+  }),
+});
+
+export const getMyPostsSchema = Joi.object({
+  query: Joi.object({
+    page: Joi.number().integer().min(1).optional(),
+    limit: Joi.number().integer().min(1).max(100).optional(),
   }),
 });
 
