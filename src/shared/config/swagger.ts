@@ -76,6 +76,10 @@ const options: swaggerJsdoc.Options = {
         url: `http://localhost:${env.port}`,
         description: "Development server",
       },
+      {
+        url: "https://v-social.onrender.com",
+        description: "Production server (Render)",
+      },
     ],
     components: {
       securitySchemes: {
