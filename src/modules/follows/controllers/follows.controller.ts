@@ -1,14 +1,18 @@
-import { Request, Response, NextFunction } from 'express';
-import { followsService } from '../services/follows.service';
-import { FollowQueryParams } from '../types/follows.types';
+import { Request, Response, NextFunction } from "express";
+import { followsService } from "../services/follows.service";
+import { FollowQueryParams } from "../types/follows.types";
 
 class FollowsController {
-  async followUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async followUser(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized',
+          message: "Unauthorized",
         });
         return;
       }
@@ -26,12 +30,16 @@ class FollowsController {
     }
   }
 
-  async unfollowUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async unfollowUser(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized',
+          message: "Unauthorized",
         });
         return;
       }
@@ -42,19 +50,28 @@ class FollowsController {
 
       res.status(200).json({
         success: true,
-        message: 'Unfollowed successfully',
+        message: "Unfollowed successfully",
       });
     } catch (error) {
       next(error);
     }
   }
 
-  async getFollows(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getFollows(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const { userId } = req.params;
-      const type = (req.query.type as 'followers' | 'following') || 'followers';
-      const page = req.query.page ? parseInt(req.query.page as string) : undefined;
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const type = (req.query.type as "followers" | "following") || "followers";
+      const page = req.query.page
+        ? parseInt(req.query.page as string)
+        : undefined;
+      const limit = req.query.limit
+        ? parseInt(req.query.limit as string)
+        : undefined;
+      const currentUserId = req.user?.id;
 
       const params: FollowQueryParams = {
         userId,
@@ -64,9 +81,9 @@ class FollowsController {
       };
 
       const result =
-        type === 'followers'
-          ? await followsService.getFollowers(params)
-          : await followsService.getFollowing(params);
+        type === "followers"
+          ? await followsService.getFollowers(params, currentUserId)
+          : await followsService.getFollowing(params, currentUserId);
 
       res.status(200).json({
         success: true,
@@ -78,19 +95,26 @@ class FollowsController {
     }
   }
 
-  async checkFollowStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async checkFollowStatus(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       if (!req.user) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized',
+          message: "Unauthorized",
         });
         return;
       }
 
       const { userId } = req.params;
 
-      const isFollowing = await followsService.checkFollowStatus(req.user.id, userId);
+      const isFollowing = await followsService.checkFollowStatus(
+        req.user.id,
+        userId
+      );
 
       res.status(200).json({
         success: true,
@@ -101,7 +125,11 @@ class FollowsController {
     }
   }
 
-  async getFollowStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getFollowStats(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const { userId } = req.params;
 
@@ -118,4 +146,3 @@ class FollowsController {
 }
 
 export const followsController = new FollowsController();
-

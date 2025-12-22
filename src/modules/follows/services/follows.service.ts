@@ -3,6 +3,7 @@ import { User } from '@modules/auth/models/User.model';
 import { NotFoundError, BadRequestError, ConflictError } from '@shared/utils/errors';
 import { FollowQueryParams } from '../types/follows.types';
 import { notificationsService } from '@modules/notifications/services/notifications.service';
+import mongoose from 'mongoose';
 
 class FollowsService {
   async followUser(followerId: string, followingId: string): Promise<IFollow> {
@@ -64,7 +65,7 @@ class FollowsService {
     await Follow.findByIdAndDelete(follow._id);
   }
 
-  async getFollowers(params: FollowQueryParams) {
+  async getFollowers(params: FollowQueryParams, currentUserId?: string) {
     const page = params.page || 1;
     const limit = params.limit || 20;
     const skip = (page - 1) * limit;
@@ -78,8 +79,39 @@ class FollowsService {
 
     const total = await Follow.countDocuments({ following: params.userId });
 
+    // Get follow status for current user
+    let followStatusMap = new Map<string, boolean>();
+    if (currentUserId) {
+      const followerIds = followers
+        .map((f) => {
+          const follower = f.follower as any;
+          return follower?._id?.toString();
+        })
+        .filter((id) => id);
+
+      if (followerIds.length > 0) {
+        const followRelationships = await Follow.find({
+          follower: currentUserId,
+          following: { $in: followerIds.map((id) => new mongoose.Types.ObjectId(id)) },
+        }).select('following');
+
+        followRelationships.forEach((follow) => {
+          followStatusMap.set(follow.following.toString(), true);
+        });
+      }
+    }
+
+    const users = followers.map((f) => {
+      const follower = f.follower as any;
+      const userId = follower?._id?.toString();
+      return {
+        ...follower,
+        isFollow: currentUserId ? followStatusMap.has(userId) : false,
+      };
+    });
+
     return {
-      users: followers.map((f) => f.follower),
+      users,
       pagination: {
         page,
         limit,
@@ -89,7 +121,7 @@ class FollowsService {
     };
   }
 
-  async getFollowing(params: FollowQueryParams) {
+  async getFollowing(params: FollowQueryParams, currentUserId?: string) {
     const page = params.page || 1;
     const limit = params.limit || 20;
     const skip = (page - 1) * limit;
@@ -103,8 +135,39 @@ class FollowsService {
 
     const total = await Follow.countDocuments({ follower: params.userId });
 
+    // Get follow status for current user
+    let followStatusMap = new Map<string, boolean>();
+    if (currentUserId) {
+      const followingIds = following
+        .map((f) => {
+          const followingUser = f.following as any;
+          return followingUser?._id?.toString();
+        })
+        .filter((id) => id);
+
+      if (followingIds.length > 0) {
+        const followRelationships = await Follow.find({
+          follower: currentUserId,
+          following: { $in: followingIds.map((id) => new mongoose.Types.ObjectId(id)) },
+        }).select('following');
+
+        followRelationships.forEach((follow) => {
+          followStatusMap.set(follow.following.toString(), true);
+        });
+      }
+    }
+
+    const users = following.map((f) => {
+      const followingUser = f.following as any;
+      const userId = followingUser?._id?.toString();
+      return {
+        ...followingUser,
+        isFollow: currentUserId ? followStatusMap.has(userId) : false,
+      };
+    });
+
     return {
-      users: following.map((f) => f.following),
+      users,
       pagination: {
         page,
         limit,
